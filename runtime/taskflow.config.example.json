@@ -1,0 +1,6 @@
+{
+  "base_branch": "dev",
+  "issue_template": ".github/ISSUE_TEMPLATE/taskflow.md",
+  "pull_request_template": ".github/PULL_REQUEST_TEMPLATE.md",
+  "checks": {}
+}
