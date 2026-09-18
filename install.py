@@ -8,13 +8,13 @@ import stat
 import sys
 from pathlib import Path
 
-AGENTS = ("codex", "claude", "both")
+AGENTS = ("none", "codex", "claude", "both")
 
 
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Install GitHub Taskflow runtime and agent skill into a Git repository.")
     p.add_argument("--target", type=Path, default=Path.cwd(), help="Target Git repository (default: current directory)")
-    p.add_argument("--agents", choices=AGENTS, default="both", help="Install Codex, Claude, or both skills")
+    p.add_argument("--agents", choices=AGENTS, default="both", help="Install no project skill, Codex, Claude, or both skills")
     p.add_argument("--base-branch", default="dev", help="Base branch written to new config (default: dev)")
     p.add_argument("--force", action="store_true", help="Overwrite Taskflow-managed runtime/skill files")
     return p

@@ -76,3 +76,25 @@ The taskflow itself never auto-stages. This skill may stage explicit paths only 
 | push failed | Resolve auth/remote/rejection before PR creation. |
 | PR create failed after push | Retry with taskflow's printed `gh pr create --base ... --head ...`. |
 | `gh` cannot choose repository | Ask for the intended GitHub repo instead of guessing. |
+
+## User-level / VS Code installation
+
+For a single clone that serves many projects, register the skill at user scope with `bootstrap.py`.
+
+```text
+~/tools/github-taskflow-skill/               # distribution clone
+~/.agents/skills/github-taskflow/           # Codex user skill
+~/.claude/skills/github-taskflow/           # Claude user skill
+~/.config/github-taskflow/source-path        # points back to distribution clone
+```
+
+The user-level skill can then install only the runtime into any repository opened in VS Code:
+
+```text
+<opened project>/scripts/taskflow.py
+<opened project>/scripts/taskflow.config.json
+<opened project>/scripts/start-task
+<opened project>/scripts/finish-task
+```
+
+This keeps the agent skill out of every project while keeping project-specific configuration in the project.

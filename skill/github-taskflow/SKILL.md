@@ -1,31 +1,71 @@
 ---
 name: github-taskflow
-description: Operate this repository's scripts/taskflow.py workflow when the user explicitly asks to start a GitHub task, run task checks, finish/submit a task, push the task branch, or create its PR. Do not use for ordinary coding unless the user asks to operate the task workflow.
+description: Install and operate GitHub Taskflow in the currently opened Git repository. Use when the user asks to install taskflow, start a GitHub task, run task checks, finish/submit a task, push the task branch, or create its PR. Designed for user-level use from Codex or Claude Code, including their VS Code extensions.
 ---
 
 # GitHub Taskflow
 
-Use the repository's existing `scripts/taskflow.py` as the source of truth. Do not reimplement its branch naming, checks, commit format, push target, or PR body logic.
+Use GitHub Taskflow's Python runtime as the source of truth. Do not reimplement its branch naming, checks, commit format, push target, or PR body logic.
 
 The user's explicit request controls the mode. Arguments, when present, are: `$ARGUMENTS`.
 
-## Preconditions
-
-1. Work from the Git repository root.
-2. Confirm `scripts/taskflow.py` and `scripts/taskflow.config.json` exist.
-3. Use the repository's configured `base_branch` and checks; do not invent replacements.
-4. Never change Git remotes as part of this skill.
-5. Never use `--skip-check` unless the user explicitly asks to skip checks.
-
-Use `python3 scripts/taskflow.py ...` on macOS/Linux. On Windows, use `py scripts\\taskflow.py ...` when `python3` is unavailable.
-
 ## Choose the mode
 
+- **install**: the user asks to install/setup/add GitHub Taskflow to the currently opened repository.
 - **start**: the user explicitly asks to start, create, or open a new task/issue/branch.
 - **check**: the user asks to inspect or run completion checks without submitting.
 - **submit**: the user explicitly asks to finish, submit, push, or create the PR for the current task.
 
 If the requested mode is genuinely unclear, ask one short question. Otherwise proceed.
+
+## Global installation contract
+
+This skill may be installed at user scope while the distribution repository is cloned somewhere else.
+
+The bootstrap installer records that clone location in:
+
+```text
+~/.config/github-taskflow/source-path
+```
+
+Do not assume the distribution clone is inside the current project.
+
+## Install into the current project
+
+1. Find the current Git repository root with `git rev-parse --show-toplevel`.
+2. Confirm `~/.config/github-taskflow/source-path` exists. If it does not, tell the user to run `python3 bootstrap.py --agents both` from their cloned `github-taskflow-skill` repository and reload VS Code.
+3. Determine the project's base branch. Use a base branch explicitly supplied by the user. If none was supplied and it cannot be determined confidently from existing team conventions, ask one short question rather than guessing.
+4. Read the distribution root from the source-path file.
+5. Run the installer with project-local skill copies disabled:
+
+   ```bash
+   SOURCE="$(cat "$HOME/.config/github-taskflow/source-path")"
+   ROOT="$(git rev-parse --show-toplevel)"
+   python3 "$SOURCE/install.py" --target "$ROOT" --agents none --base-branch <base-branch>
+   ```
+
+   On Windows, use the Python executable available to the user and the equivalent user config path when needed.
+6. Read `scripts/taskflow.config.json` in the target project and report its path. Do not invent project-specific build/lint/test commands. If the default checks do not match the project, ask the user whether to configure them or handle that as a separate requested task.
+7. Verify these files now exist in the project:
+
+   ```text
+   scripts/taskflow.py
+   scripts/taskflow.config.json
+   scripts/start-task
+   scripts/finish-task
+   ```
+
+Project-local `.agents/skills` or `.claude/skills` copies are not required when this user-level skill is already installed.
+
+## Preconditions for start/check/submit
+
+1. Work from the Git repository root.
+2. Confirm `scripts/taskflow.py` and `scripts/taskflow.config.json` exist. If missing, use **install** instead of inventing commands.
+3. Use the repository's configured `base_branch` and checks; do not invent replacements.
+4. Never change Git remotes as part of this skill.
+5. Never use `--skip-check` unless the user explicitly asks to skip checks.
+
+Use `python3 scripts/taskflow.py ...` on macOS/Linux. On Windows, use `py scripts\\taskflow.py ...` when `python3` is unavailable.
 
 ## Start
 
