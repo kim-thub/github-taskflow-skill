@@ -77,7 +77,7 @@ The taskflow itself never auto-stages. This skill may stage explicit paths only 
 | PR create failed after push | Retry with taskflow's printed `gh pr create --base ... --head ...`. |
 | `gh` cannot choose repository | Ask for the intended GitHub repo instead of guessing. |
 
-## User-level / VS Code installation
+## User-level / terminal CLI installation
 
 For a single clone that serves many projects, register the skill at user scope with `bootstrap.py`.
 
@@ -88,7 +88,7 @@ For a single clone that serves many projects, register the skill at user scope w
 ~/.config/github-taskflow/source-path        # points back to distribution clone
 ```
 
-The user-level skill can then install only the runtime into any repository opened in VS Code:
+The user-level skill can then install only the runtime into any repository where Codex CLI or Claude Code CLI is launched:
 
 ```text
 <opened project>/scripts/taskflow.py
@@ -98,3 +98,8 @@ The user-level skill can then install only the runtime into any repository opene
 ```
 
 This keeps the agent skill out of every project while keeping project-specific configuration in the project.
+
+
+## IDE extension note
+
+The primary validation target for v0.3.0 is a normal terminal running Codex CLI or Claude Code CLI. IDE extensions may use a different sandbox or credential environment. If `gh auth status` succeeds in the normal terminal but fails only in an IDE Agent environment, treat that as an environment-specific authentication/access issue rather than automatically replacing the user's GitHub credentials.

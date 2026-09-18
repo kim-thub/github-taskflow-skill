@@ -1,6 +1,6 @@
 ---
 name: github-taskflow
-description: Install and operate GitHub Taskflow in the currently opened Git repository. Use when the user asks to install taskflow, start a GitHub task, run task checks, finish/submit a task, push the task branch, or create its PR. Designed for user-level use from Codex or Claude Code, including their VS Code extensions.
+description: Install and operate GitHub Taskflow in the current Git repository. Use when the user asks to install taskflow, start a GitHub task, run task checks, finish/submit a task, push the task branch, or create its PR. Designed primarily for user-level use from Codex CLI or Claude Code CLI in a normal terminal.
 ---
 
 # GitHub Taskflow
@@ -33,7 +33,7 @@ Do not assume the distribution clone is inside the current project.
 ## Install into the current project
 
 1. Find the current Git repository root with `git rev-parse --show-toplevel`.
-2. Confirm `~/.config/github-taskflow/source-path` exists. If it does not, tell the user to run `python3 bootstrap.py --agents both` from their cloned `github-taskflow-skill` repository and reload VS Code.
+2. Confirm `~/.config/github-taskflow/source-path` exists. If it does not, tell the user to run `python3 bootstrap.py --agents both` from their cloned `github-taskflow-skill` repository and restart the current Agent CLI session.
 3. Determine the project's base branch. Use a base branch explicitly supplied by the user. If none was supplied and it cannot be determined confidently from existing team conventions, ask one short question rather than guessing.
 4. Read the distribution root from the source-path file.
 5. Run the installer with project-local skill copies disabled:
@@ -56,6 +56,12 @@ Do not assume the distribution clone is inside the current project.
    ```
 
 Project-local `.agents/skills` or `.claude/skills` copies are not required when this user-level skill is already installed.
+
+## Runtime environment
+
+The primary supported environment is Codex CLI or Claude Code CLI launched from a normal terminal in the target repository. Before GitHub operations, use the same environment to run `gh auth status`.
+
+If `gh auth status` succeeds in the user's terminal but fails only inside an IDE extension, do not conclude that the stored GitHub token is invalid. Report the environment mismatch and recommend retrying from the terminal Agent CLI. Do not print, request, or expose token values while diagnosing.
 
 ## Preconditions for start/check/submit
 

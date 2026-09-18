@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.0
+
+- 사용자 전역 Codex/Claude Skill 등록 구조 유지
+- 공식 사용 흐름을 VS Code 확장 중심에서 터미널 Codex CLI / Claude Code CLI 중심으로 변경
+- 일반 터미널의 `gh auth status`를 GitHub 인증 검증 기준으로 명시
+- IDE 확장에서만 발생하는 Keychain/sandbox 인증 차이를 제한사항으로 문서화
+- `bootstrap.py` 설치 완료 안내를 터미널 CLI 기준으로 변경
+
 ## v0.2.0
 
 - 사용자 전역 Codex/Claude Skill 등록용 `bootstrap.py` 추가

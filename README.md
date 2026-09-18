@@ -2,7 +2,7 @@
 
 GitHub Issue → 작업 브랜치 → 프로젝트 검사 → 선택적 Stage → Commit → `origin` Push → Pull Request 생성을 하나의 로컬 워크플로우로 연결하는 **Claude Code + Codex 공용 Agent Skill**입니다.
 
-> 상태: v0.2.0 / 사용자 전역 Skill + VS Code 확장 사용 지원 / GitHub Actions 불필요
+> 상태: v0.3.0 / 사용자 전역 Skill + 터미널 CLI 중심 사용 / GitHub Actions 불필요
 
 ## 권장 사용 방식: 한 번 clone, 모든 프로젝트에서 사용
 
@@ -35,26 +35,57 @@ Claude  ~/.claude/skills/github-taskflow/
 공통    ~/.config/github-taskflow/source-path
 ```
 
-등록 후 VS Code에서 **Developer: Reload Window**를 실행하거나 Claude/Codex 확장을 다시 시작합니다.
+## 권장 실행 환경: 터미널 CLI
 
-## VS Code에서 프로젝트 설치
+v0.3.0의 기본 사용 환경은 VS Code 확장이 아니라 **일반 터미널에서 실행한 Codex CLI 또는 Claude Code CLI**입니다.
 
-이제 Skill 저장소가 현재 프로젝트 안에 있을 필요가 없습니다.
+먼저 일반 터미널에서 GitHub CLI 인증이 정상인지 확인합니다.
 
-VS Code로 Git 프로젝트를 열고 Claude Code 또는 Codex에게 자연어로 요청합니다.
-
-```text
-이 프로젝트에 github-taskflow 설치해줘. base branch는 dev야.
+```bash
+gh auth status
 ```
 
-직접 Skill을 호출해도 됩니다.
+그다음 작업할 Git 저장소로 이동해서 Agent CLI를 실행합니다.
 
-```text
-Claude Code: /github-taskflow install dev
-Codex:       $github-taskflow install dev
+### Codex CLI
+
+```bash
+cd /path/to/project
+codex
 ```
 
-Agent는 전역 설정에 기록된 clone 위치를 찾아 다음과 같은 런타임만 현재 프로젝트에 설치합니다.
+Codex에서 Skill을 명시적으로 호출할 수 있습니다.
+
+```text
+$github-taskflow install dev
+$github-taskflow 작업 시작해줘. feat, 로그인 페이지 구현.
+$github-taskflow 검사해줘.
+$github-taskflow 이 작업 제출하고 PR까지 만들어줘.
+```
+
+Codex는 사용자 전역 Skill을 `$HOME/.agents/skills`에서 읽습니다.
+
+### Claude Code CLI
+
+```bash
+cd /path/to/project
+claude
+```
+
+Claude Code에서:
+
+```text
+/github-taskflow install dev
+/github-taskflow 작업 시작해줘. feat, 로그인 페이지 구현.
+/github-taskflow 검사해줘.
+/github-taskflow 이 작업 제출하고 PR까지 만들어줘.
+```
+
+Skill을 처음 등록했거나 갱신했다면 실행 중인 Agent CLI 세션을 다시 시작하는 것이 가장 확실합니다.
+
+## 프로젝트에 설치되는 파일
+
+`install` 모드는 전역 설정에 기록된 distribution clone 위치를 찾아 현재 프로젝트에 Taskflow runtime만 설치합니다.
 
 ```text
 your-project/
@@ -68,19 +99,7 @@ your-project/
     └── finish-task
 ```
 
-프로젝트마다 `.agents/skills`와 `.claude/skills`를 복사할 필요가 없습니다.
-
-## 설치 후 사용
-
-VS Code Agent 대화에서:
-
-```text
-작업 시작해줘. feat, 로그인 페이지 구현.
-검사해줘.
-이 작업 제출하고 PR까지 만들어줘.
-```
-
-Skill은 기존 Python 런타임을 호출하며 동일한 안전 규칙을 유지합니다.
+전역 Skill을 사용하는 경우 프로젝트마다 `.agents/skills`와 `.claude/skills`를 복사할 필요가 없습니다.
 
 ## 프로젝트별 설정
 
@@ -116,7 +135,7 @@ Agent는 프로젝트의 build/lint/test 명령을 임의로 추측하지 않습
 python3 install.py --target /path/to/project --agents both --base-branch dev
 ```
 
-전역 Skill을 이미 사용하는 프로젝트에는 런타임만 설치할 수 있습니다.
+전역 Skill을 이미 사용하는 프로젝트에는 runtime만 설치할 수 있습니다.
 
 ```bash
 python3 install.py --target /path/to/project --agents none --base-branch dev
@@ -141,7 +160,13 @@ git pull
 python3 bootstrap.py --agents both --force
 ```
 
-프로젝트에 복사된 `scripts/taskflow.py` 런타임은 자동으로 덮어쓰지 않습니다. 새 런타임 버전을 적용할 프로젝트에서 명시적으로 installer를 다시 실행하세요.
+프로젝트에 복사된 `scripts/taskflow.py` runtime은 자동으로 덮어쓰지 않습니다. 새 runtime 버전을 적용할 프로젝트에서 명시적으로 installer를 다시 실행하세요.
+
+## VS Code 확장 사용에 대한 안내
+
+Codex/Claude의 IDE 확장에서도 Skill 자체는 인식될 수 있습니다. 다만 확장 실행 환경이 일반 터미널과 다른 sandbox, Keychain 또는 credential 접근 정책을 사용할 수 있습니다.
+
+예를 들어 일반 터미널에서 `gh auth status`가 성공하지만 IDE Agent 내부에서만 인증이 실패한다면, 토큰을 다시 발급하기 전에 동일 명령을 일반 터미널에서 비교하세요. v0.3.0의 검증 기준은 **일반 터미널에서 실행한 Agent CLI**입니다.
 
 ## 안전장치
 
@@ -160,7 +185,8 @@ python3 bootstrap.py --agents both --force
 - Python 3.10+
 - Git
 - GitHub CLI (`gh`)
-- `gh auth login` 완료
+- 일반 터미널에서 `gh auth status` 성공
+- Codex CLI 또는 Claude Code CLI
 - 팀원이 직접 clone한 저장소에서 `origin`이 제출 대상 GitHub 저장소를 가리키는 구조
 
 ## 테스트

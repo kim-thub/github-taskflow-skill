@@ -12,7 +12,7 @@ MODES = ("copy", "link")
 
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description="Register GitHub Taskflow as a user-level Codex/Claude skill for VS Code and CLI use."
+        description="Register GitHub Taskflow as a user-level Codex/Claude skill for terminal CLI use."
     )
     p.add_argument("--agents", choices=AGENTS, default="both")
     p.add_argument(
@@ -84,9 +84,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     if result == 0:
         print("\nNext:")
-        print("  1. Reload VS Code (Developer: Reload Window) or restart the agent extension")
-        print("  2. Open any Git project")
-        print("  3. Ask: '이 프로젝트에 github-taskflow 설치해줘. base branch는 dev야.'")
+        print("  1. Open a normal terminal in any Git project")
+        print("  2. Run Codex CLI or Claude Code CLI")
+        print("  3. Invoke github-taskflow and install it into the project")
     return result
 
 
