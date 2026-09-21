@@ -1,6 +1,6 @@
 ---
 name: github-taskflow
-description: Install and operate GitHub Taskflow in the current Git repository. Use when the user asks to install taskflow, start a GitHub task, run task checks, finish/submit a task, push the task branch, or create its PR. Designed primarily for user-level use from Codex CLI or Claude Code CLI in a normal terminal.
+description: Install and operate GitHub Taskflow in the current Git repository. Use when the user asks to install/update taskflow, start a GitHub task, move uncommitted work from dev/main into a new issue branch, run checks, or finish/submit a PR. Designed primarily for terminal Codex CLI or Claude Code CLI.
 ---
 
 # GitHub Taskflow
@@ -12,7 +12,9 @@ The user's explicit request controls the mode. Arguments, when present, are: `$A
 ## Choose the mode
 
 - **install**: the user asks to install/setup/add GitHub Taskflow to the currently opened repository.
+- **update**: the user asks to update a project's existing Taskflow runtime, preserving its configuration and templates.
 - **start**: the user explicitly asks to start, create, or open a new task/issue/branch.
+- **adopt**: the user asks to move work already started but not committed on `dev`/`main` into a new task branch.
 - **check**: the user asks to inspect or run completion checks without submitting.
 - **submit**: the user explicitly asks to finish, submit, push, or create the PR for the current task.
 
@@ -57,6 +59,18 @@ Do not assume the distribution clone is inside the current project.
 
 Project-local `.agents/skills` or `.claude/skills` copies are not required when this user-level skill is already installed.
 
+## Update existing project runtime
+
+Global Skill registration does not automatically update `scripts/taskflow.py` already copied into a project. When the user requests v0.4.0 support in an existing project, read the source-path file, find the project root and run:
+
+```bash
+SOURCE="$(cat "$HOME/.config/github-taskflow/source-path")"
+ROOT="$(git rev-parse --show-toplevel)"
+python3 "$SOURCE/install.py" --target "$ROOT" --update-runtime
+```
+
+This explicitly updates the three managed runtime scripts only; it leaves `scripts/taskflow.config.json`, `.github/` templates and both Skill installations untouched. Before updating, inspect `git status --short` and warn if the three runtime scripts have user edits; never overwrite an ambiguous user customization without consent.
+
 ## Runtime environment
 
 The primary supported environment is Codex CLI or Claude Code CLI launched from a normal terminal in the target repository. Before GitHub operations, use the same environment to run `gh auth status`.
@@ -75,17 +89,20 @@ Use `python3 scripts/taskflow.py ...` on macOS/Linux. On Windows, use `py script
 
 ## Start
 
-1. Run `git status --short`. `start` requires a clean worktree; if it is dirty, stop and show the files that block the workflow.
+1. Run `git status --short` and `git branch --show-current`. On a clean worktree use the normal `start` flow. When work is already modified on `dev`/`main`, use **adopt** only if the user explicitly asked to move that work into a branch; otherwise show the paths and ask for confirmation before adopting them. If any change is unrelated or ambiguous, do not silently carry it into the task branch.
 2. Determine the task type from `feat`, `fix`, `refactor`, `style`, `test`, `docs`, `chore`. If the user's request does not make the type clear, ask for it.
 3. Derive a concise Korean or project-language title from the user's requested work.
 4. Read the configured issue template. Fill its existing sections from the user's task. Do not invent unrelated scope.
 5. Write the issue body to `.git/taskflow-agent-issue.md`. This keeps the temporary file outside Git status.
 6. Run non-interactively:
-   `python3 scripts/taskflow.py start --type <type> --title <title> --body-file .git/taskflow-agent-issue.md`
+   - Clean worktree: `python3 scripts/taskflow.py start --type <type> --title <title> --body-file .git/taskflow-agent-issue.md`
+   - User-approved, uncommitted work on `dev`/`main`: `python3 scripts/taskflow.py start --adopt --type <type> --title <title> --body-file .git/taskflow-agent-issue.md`
 7. Remove only `.git/taskflow-agent-issue.md` after the command finishes.
 8. Verify `git branch --show-current`. Report the created issue URL and branch from command output.
 
 Do not call the interactive `start` form from an agent.
+
+`--adopt` fetches the configured remote base to check commit ancestry, but does not switch to that branch, pull into the dirty tree, stash, clean, stage, commit, or reset files. The current HEAD must be an ancestor of `origin/<base_branch>` (or the explicitly configured start remote). Existing changes, including Stage state and untracked files, remain intact on the new branch. If already committed work exists on `dev`/`main` outside the remote PR base history, stop **before creating an issue** and explain that moving those commits requires separate user-approved recovery. Do not run `git reset`, `git cherry-pick`, or force-push on a shared base branch automatically.
 
 ## Check
 
@@ -112,7 +129,8 @@ Treat an explicit request to **finish/submit/push/create the PR** as authorizati
 
 ## Failure boundaries
 
-- Dirty worktree on start: do not stash, clean, delete, or auto-commit existing work.
+- Dirty worktree on start: preserve it; only use `start --adopt` for confirmed uncommitted work on `dev`/`main`. Never stash, clean, delete, or auto-commit existing work.
+- Committed work on the base branch: `--adopt` refuses history that would add unrelated commits to a PR. Do not rewrite shared branch history automatically.
 - No staged files on submit: stage only files clearly belonging to the current task as described above.
 - Check failure: do not commit/push/PR until resolved, unless the user explicitly chose `--skip-check`.
 - Push failure: do not create a PR manually until the push problem is resolved.

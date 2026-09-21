@@ -17,6 +17,10 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--agents", choices=AGENTS, default="both", help="Install no project skill, Codex, Claude, or both skills")
     p.add_argument("--base-branch", default="dev", help="Base branch written to new config (default: dev)")
     p.add_argument("--force", action="store_true", help="Overwrite Taskflow-managed runtime/skill files")
+    p.add_argument(
+        "--update-runtime", action="store_true",
+        help="Update only the three scripts in an already installed project; preserve config, templates and skills",
+    )
     return p
 
 
@@ -58,6 +62,23 @@ def main(argv: list[str] | None = None) -> int:
     if not (target / ".git").exists():
         print(f"error: target is not a Git repository root: {target}", file=sys.stderr)
         return 2
+
+    if args.update_runtime:
+        destination = target / "scripts/taskflow.py"
+        if not destination.is_file() or not (target / "scripts/taskflow.config.json").is_file():
+            print("error: --update-runtime requires an existing Taskflow installation", file=sys.stderr)
+            return 2
+        runtime = package_root / "runtime"
+        for filename in ("taskflow.py", "start-task", "finish-task"):
+            message = copy_file(
+                runtime / filename,
+                target / "scripts" / filename,
+                force=True,
+                executable=filename != "taskflow.py",
+            )
+            print(message)
+        print("preserve scripts/taskflow.config.json, .github templates, and agent skills")
+        return 0
 
     messages: list[str] = []
     runtime = package_root / "runtime"

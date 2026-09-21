@@ -21,6 +21,10 @@ def _build_parser() -> argparse.ArgumentParser:
     start_parser.add_argument("--type", dest="task_type", help="작업 타입 (예: feat, fix)")
     start_parser.add_argument("--title", help="작업 제목")
     start_parser.add_argument("--body-file", type=Path, help="이슈 본문 파일 경로")
+    start_parser.add_argument(
+        "--adopt", action="store_true",
+        help="dev/main에서 이미 수정한 미커밋 파일과 Stage 상태를 유지하며 작업 브랜치로 이동합니다.",
+    )
 
     finish_parser = subcommands.add_parser("finish", help="검사하거나 staged 변경을 제출합니다.")
     finish_parser.add_argument("--continue", dest="continue_submit", action="store_true", help="검사 후 staged 파일을 제출합니다.")
@@ -41,7 +45,7 @@ def main(argv: list[str] | None = None) -> int:
         if any(supplied) and not all(supplied):
             parser.error("start 비대화형 실행에는 --type, --title, --body-file이 모두 필요합니다.")
         return start_task(
-            StartOptions(args.task_type, args.title, args.body_file, interactive=not any(supplied)),
+            StartOptions(args.task_type, args.title, args.body_file, interactive=not any(supplied), adopt=args.adopt),
             runner,
             io,
         )
@@ -154,6 +158,7 @@ class StartOptions:
     title: str | None
     body_file: Path | None
     interactive: bool
+    adopt: bool = False
 
 
 @dataclass(frozen=True)
@@ -282,11 +287,6 @@ def start_task(options: StartOptions, runner: CommandRunner, io: TaskflowIO) -> 
     if status_result.returncode != 0:
         io.write(_command_failure("git status --porcelain", status_result))
         return 1
-    if status_result.stdout.strip():
-        io.write("작업 트리가 깨끗하지 않습니다. 변경을 정리한 뒤 다시 실행하세요.")
-        io.write(status_result.stdout.rstrip())
-        return 1
-
     try:
         config = load_config(Path(__file__).with_name("taskflow.config.json"))
         base_branch = config["base_branch"]
@@ -295,18 +295,26 @@ def start_task(options: StartOptions, runner: CommandRunner, io: TaskflowIO) -> 
         return 1
     remote = os.environ.get("TASKFLOW_REMOTE", "origin").strip() or "origin"
 
-    switch_result = _run_start_command(runner, ["git", "switch", base_branch], root, io)
-    if switch_result is None:
-        return 1
-    if switch_result.returncode != 0:
-        io.write(_command_failure(f"git switch {base_branch}", switch_result))
-        return 1
-    pull_result = _run_start_command(runner, ["git", "pull", "--ff-only", remote, base_branch], root, io)
-    if pull_result is None:
-        return 1
-    if pull_result.returncode != 0:
-        io.write(_command_failure(f"git pull --ff-only {remote} {base_branch}", pull_result))
-        return 1
+    if options.adopt:
+        if not _prepare_adopt_start(root, runner, io, base_branch, remote, status_result.stdout):
+            return 1
+    else:
+        if status_result.stdout.strip():
+            io.write("작업 트리가 깨끗하지 않습니다. 현재 수정한 파일을 새 작업 브랜치로 옮기려면 start --adopt를 사용하세요.")
+            io.write(status_result.stdout.rstrip())
+            return 1
+        switch_result = _run_start_command(runner, ["git", "switch", base_branch], root, io)
+        if switch_result is None:
+            return 1
+        if switch_result.returncode != 0:
+            io.write(_command_failure(f"git switch {base_branch}", switch_result))
+            return 1
+        pull_result = _run_start_command(runner, ["git", "pull", "--ff-only", remote, base_branch], root, io)
+        if pull_result is None:
+            return 1
+        if pull_result.returncode != 0:
+            io.write(_command_failure(f"git pull --ff-only {remote} {base_branch}", pull_result))
+            return 1
 
     if options.interactive:
         values = _start_values(options, io)
@@ -343,9 +351,74 @@ def start_task(options: StartOptions, runner: CommandRunner, io: TaskflowIO) -> 
         io.write(f"생성된 이슈: {issue_url}")
         io.write(f"수동으로 브랜치를 만드세요: git switch -c {branch_name}")
         return 1
+    if options.adopt:
+        io.write("수정/Stage/새 파일을 유지한 채 브랜치를 만들었습니다. 자동 Stage·Commit·Stash는 실행하지 않았습니다.")
     io.write(f"작업 브랜치를 만들었습니다: {branch_name}")
     io.write(f"이슈: {issue_url}")
     return 0
+
+
+def _prepare_adopt_start(
+    root: Path,
+    runner: CommandRunner,
+    io: TaskflowIO,
+    base_branch: str,
+    remote: str,
+    status: str,
+) -> bool:
+    """Reject unsafe histories before creating an issue or changing the working tree."""
+    if not status.strip():
+        io.write("옮길 미커밋 변경사항이 없습니다. 일반 start를 사용하세요.")
+        return False
+
+    current_result = _run_start_command(runner, ["git", "branch", "--show-current"], root, io)
+    if current_result is None:
+        return False
+    if current_result.returncode != 0:
+        io.write(_command_failure("git branch --show-current", current_result))
+        return False
+    current = current_result.stdout.strip()
+    if current not in {base_branch, "main", "dev"}:
+        io.write(f"--adopt는 dev/main 기준 브랜치에서만 지원합니다. 현재 브랜치: {current or '(detached HEAD)'}")
+        return False
+
+    # Fetch updates the remote-tracking branch, not the dirty worktree/index.
+    fetch = _run_start_command(runner, ["git", "fetch", remote, base_branch], root, io)
+    if fetch is None:
+        return False
+    if fetch.returncode != 0:
+        io.write(_command_failure(f"git fetch {remote} {base_branch}", fetch))
+        return False
+
+    remote_tip = f"refs/remotes/{remote}/{base_branch}"
+    remote_ref = _run_start_command(runner, ["git", "rev-parse", "--verify", f"{remote_tip}^{{commit}}"], root, io)
+    if remote_ref is None:
+        return False
+    if remote_ref.returncode != 0:
+        io.write(f"기준 원격 브랜치를 찾을 수 없습니다: {remote_tip}. 작업 파일은 그대로입니다.")
+        return False
+
+    # If HEAD contains commits not in the PR base, simply switching -c would
+    # carry unrelated/previously committed work into the future PR.
+    ancestry = _run_start_command(runner, ["git", "merge-base", "--is-ancestor", "HEAD", remote_tip], root, io)
+    if ancestry is None:
+        return False
+    if ancestry.returncode != 0:
+        io.write(
+            f"현재 {current}의 HEAD가 {remote}/{base_branch}의 조상이 아닙니다. "
+            "이미 dev/main에 커밋한 변경이나 다른 브랜치의 커밋이 PR에 섞일 수 있어 자동 이동하지 않습니다. "
+            "기존 파일/Stage/커밋은 그대로 유지됩니다. 커밋 이력을 먼저 별도로 확인하세요."
+        )
+        return False
+
+    if current != base_branch:
+        io.write(
+            f"현재 브랜치는 {current}, PR 기준은 {base_branch}입니다. "
+            "현재 HEAD가 원격 기준 브랜치의 조상임을 확인했습니다. "
+            "기존 파일을 건드리지 않고 현재 HEAD에서 작업 브랜치를 만듭니다."
+        )
+    io.write("미커밋 변경사항을 유지합니다. --adopt 모드에서는 git switch <base> 또는 git pull을 실행하지 않습니다.")
+    return True
 
 
 def finish_task(options: FinishOptions, runner: CommandRunner, io: TaskflowIO) -> int:

@@ -35,7 +35,7 @@ Typical configuration:
 
 ## Start behavior
 
-`start` performs:
+For a clean worktree, `start` performs:
 
 ```text
 git switch <base_branch>
@@ -43,6 +43,19 @@ git pull --ff-only origin <base_branch>
 gh issue create
 git switch -c <issue>-<type>-<slug>
 ```
+
+For a team member who already modified files on `dev` or `main` but has **not committed** them, explicit `start --adopt` performs:
+
+```text
+git status --porcelain
+git branch --show-current
+git fetch origin <base_branch>
+git merge-base --is-ancestor HEAD origin/<base_branch>
+gh issue create
+git switch -c <issue>-<type>-<slug>  # from the SAME current HEAD
+```
+
+This preserves staged edits, unstaged edits and untracked files; `--adopt` never switches to the configured base or pulls while work is dirty. When starting on `main` with `dev` configured as the PR base, `main`'s HEAD must be an ancestor of `origin/dev` to avoid mixing unrelated committed work into the PR. The new branch may be behind the target base; no rebase or merge is performed automatically. If ancestry check fails, it stops before creating the issue. Already-committed changes on `dev`/`main` require a separate reviewed recovery procedure; do not `reset --hard` or force-push a shared branch.
 
 The team model assumes `origin` is the repository used by team members. Fork-based workflows need an explicit repository policy and should not be inferred by the skill.
 
@@ -69,13 +82,18 @@ The taskflow itself never auto-stages. This skill may stage explicit paths only 
 | Symptom | Action |
 | --- | --- |
 | `gh` auth failure | Run/ask user to run `gh auth login`, then retry. |
-| dirty start worktree | Show `git status --short`; do not clean or stash automatically. |
+| dirty start worktree | If work is already underway on `dev`/`main`, obtain approval for `start --adopt`; never clean or stash automatically. |
+| `--adopt` refuses commit ancestry | Existing commits are not solely part of the configured remote base; review history first, never auto-reset or force-push. |
 | missing `origin/<base_branch>` | Verify repository setup; do not rewrite remotes. |
 | issue created but branch creation failed | Preserve issue URL and use taskflow's printed branch command. |
 | check failed | Fix the failing command and rerun `finish`. |
 | push failed | Resolve auth/remote/rejection before PR creation. |
 | PR create failed after push | Retry with taskflow's printed `gh pr create --base ... --head ...`. |
 | `gh` cannot choose repository | Ask for the intended GitHub repo instead of guessing. |
+
+## Updating an already installed project
+
+`python3 <distribution>/install.py --target <repo> --update-runtime` replaces only `scripts/taskflow.py`, `scripts/start-task` and `scripts/finish-task`. It intentionally retains project-specific `scripts/taskflow.config.json`, GitHub templates and existing Skill registrations. Do not use `--force` for a routine runtime update because it also replaces templates/configuration.
 
 ## User-level / terminal CLI installation
 

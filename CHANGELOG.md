@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.0
+
+- `start --adopt` 추가: dev/main에서 이미 수정한 미커밋 작업을 새로운 이슈 브랜치로 이동
+- 기존 Stage·unstaged·untracked 상태 유지, dirty worktree에서 `git switch dev` 및 `git pull` 생략
+- 현재 HEAD가 원격 PR 기준 브랜치의 조상이 아닌 경우 Issue 생성 전에 중단해 다른 커밋이 PR에 섞이는 사고 방지
+- 프로젝트 설정/템플릿은 유지하고 runtime만 갱신하는 `install.py --update-runtime` 지원
+- 전역 Codex/Claude Skill의 adopt/update 지침과 실제 Git 통합 회귀 테스트 추가
+
 ## v0.3.0
 
 - 사용자 전역 Codex/Claude Skill 등록 구조 유지
